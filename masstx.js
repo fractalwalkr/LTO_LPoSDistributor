@@ -209,22 +209,22 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
 
             setTimeout(function() { //Start function actions for an Asset
 
-                var assetamount = 0
-                var masstransfercounter = masstransfers
-                var loop = totaltxs
-                var onemasstransferamount
-                var assetId = ''
-                var masstransfercounterup = 0
-                var logmessage
+                let assetamount = 0
+                let masstransfercounter = masstransfers
+                let loop = totaltxs
+                
+                let assetId = ''
+                let masstransfercounterup = 0;
+                let logmessage
 
                 if (asset == 'lto') {
                     decimalpts = 8
                 }
                 if (asset !== 'lto') {
-                    var assetId = payment["Common"][asset + "assetId"]
+                    let assetId = payment["Common"][asset + "assetId"]
                 }
 
-                var masstransactionpayment = {
+                let masstransactionpayment = {
                     "version": masstransferversion,
                     "type": masstransfertype,
                     "sender": payment.Common.sender
@@ -251,11 +251,11 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
 
                 console.log(logmessage)
 
-                for (var cnt = 0; cnt < masstransfers; cnt++) { //Loop through all masstransfers for one asset
+                for (let cnt = 0; cnt < masstransfers; cnt++) { //Loop through all masstransfers for one asset
 
                     // without proper scope definition (let), the content of that variable will be wrong
                     let masstxarray = [];
-                    onemasstransferamount = 0;
+                    let onemasstransferamount = 0;
 
                     if (loop > maxmasstransfertxs) {
                         loop = maxmasstransfertxs;
@@ -273,7 +273,8 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                     masstransfercounterup++
                     masstransfercost = transferfee + (masstransferfee * masstxarray.length)
                     masstransactionpayment.fee = masstransfercost //Add fee to masstransfer json object
-
+                    let fee = masstransactionpayment.fee;
+                    
                     if (totaltxs > maxmasstransfertxs) { //calc number of transactions for last masstransfer
                         if (masstransfercounter == 1) {
                             loop = totaltxs - (masstransfers - 1) * maxmasstransfertxs
@@ -325,10 +326,10 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                                 }
                             }
 
-                            logmessage = "         " + batchid + "] - masstransfer " + masstransfercounterup +
+                            logmessage = "         " + batchid + "] - masstransfer " + (cnt+1) +
                                 " for " + asset + " done! Send " + onemasstransferamount / Math.pow(10, decimalpts) +
                                 " " + asset + " with " + masstxarray.length + " transactions in it." +
-                                " Cost " + masstransactionpayment.fee / Math.pow(10, 8)
+                                " Cost " + fee / Math.pow(10, 8)
 
                             console.log(logmessage)
 
@@ -336,7 +337,7 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                             masstxarray = []
                             onemasstransferamount = 0
                             masstxsdone++
-                            transfercostbatch += masstransactionpayment.fee / Math.pow(10, 8)
+                            transfercostbatch += fee / Math.pow(10, 8)
 
                             if (masstxsdone == nrofmasstransfers) { //Finished all masstransfers for one batch!
 
