@@ -11,6 +11,7 @@ var config = {
     apiKey: 'your api key'
 };
 
+const debug = true;
 const paymentqueuefile = 'payqueue.dat'
 const transactiontimeout = 1500 //Msecs to wait between every transaction posted
 const paymentsdonedir = 'paymentsDone/'
@@ -183,7 +184,6 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
 
     var masstxsdone = 0 //counter to detect when all masstransfers are done for one payment batch
     var payment = {} //Payment object with all transactions for lto
-    var masstxarray = [] //array with all transactions for 1 masstransfer
     var masstxpayment = {} //JSON object used for actual payment POST
     var decimalpts //how many decimals for a token
     var delayarray = [] //array to set timeout time related to all transactions to be done
@@ -253,50 +253,66 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
 
                 for (var cnt = 0; cnt < masstransfers; cnt++) { //Loop through all masstransfers for one asset
 
-                    masstxarray = []
-                    onemasstransferamount = 0
-                    timeout = cnt * transactiontimeout //timeout for masstransfers
+                    // without proper scope definition (let), the content of that variable will be wrong
+                    let masstxarray = [];
+                    onemasstransferamount = 0;
 
-                    setTimeout(function() { //Start function masstransfers
+                    if (loop > maxmasstransfertxs) {
+                        loop = maxmasstransfertxs;
+                    }
 
-                        if (loop > maxmasstransfertxs) {
-                            loop = maxmasstransfertxs
+                    for (var i = 0; i < loop; i++) { //Loop trough all transactions, max 'const masstransfer or #txs if 1 masstransfer
+
+                        masstxarray.push(assettxs[ii]) //cycle through all transactions
+                        onemasstransferamount += assettxs[ii].amount //how many fees in one masstransfer
+                        ii++ //counter for all transactions
+                    }
+
+                    masstransactionpayment['transfers'] = masstxarray //add transactions to payment json object
+                    masstransfercounter-- //For breaking the for loop
+                    masstransfercounterup++
+                    masstransfercost = transferfee + (masstransferfee * masstxarray.length)
+                    masstransactionpayment.fee = masstransfercost //Add fee to masstransfer json object
+
+                    if (totaltxs > maxmasstransfertxs) { //calc number of transactions for last masstransfer
+                        if (masstransfercounter == 1) {
+                            loop = totaltxs - (masstransfers - 1) * maxmasstransfertxs
+                        }
+                    }
+
+                    if (debug) {
+                        console.log("debug output:");
+                        console.log("loop iteration = " + cnt);
+                        console.log("going to send out request with following masstransactionpayment:");
+                        console.log(JSON.stringify(masstransactionpayment));
+                    }
+
+                    //Put here the actual POST function for a masstransfer
+                    request.post({
+                        url: config.node + '/transactions/sign',
+                        json: masstransactionpayment,
+                        headers: {
+                            "Accept": "application/json",
+                            "Content-Type": "application/json",
+                            "api_key": config.apiKey
+                        }
+                    }, function(err, res) {
+                        if (err || res.body.error) {
+                            const error = err || res.body;
+
+                            console.log(error);
+                            return;
                         }
 
-                        for (var i = 0; i < loop; i++) { //Loop trough all transactions, max 'const masstransfer or #txs if 1 masstransfer
-
-                            masstxarray.push(assettxs[ii]) //cycle through all transactions
-                            onemasstransferamount += assettxs[ii].amount //how many fees in one masstransfer
-                            ii++ //counter for all transactions
-                        }
-
-                        masstransactionpayment['transfers'] = masstxarray //add transactions to payment json object
-                        masstransfercounter-- //For breaking the for loop
-                        masstransfercounterup++
-                        masstransfercost = transferfee + (masstransferfee * masstxarray.length)
-                        masstransactionpayment.fee = masstransfercost //Add fee to masstransfer json object
-
-                        if (totaltxs > maxmasstransfertxs) { //calc number of transactions for last masstransfer
-                            if (masstransfercounter == 1) {
-                                loop = totaltxs - (masstransfers - 1) * maxmasstransfertxs
-                            }
-                        }
-                        if (masstransfers == 1) {
-                            timeout = 0
-                        } else {
-                            timeout = transactiontimeout
-                        }
-
-                        //Put here the actual POST function for a masstransfer
                         request.post({
-                            url: config.node + '/transactions/sign',
-                            json: masstransactionpayment,
+                            url: config.node + '/transactions/broadcast',
+                            json: res.body,
                             headers: {
                                 "Accept": "application/json",
-                                "Content-Type": "application/json",
-                                "api_key": config.apiKey
+                                "Content-Type": "application/json"
                             }
                         }, function(err, res) {
+
                             if (err || res.body.error) {
                                 const error = err || res.body;
 
@@ -304,39 +320,27 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                                 return;
                             }
 
-                            request.post({
-                                url: config.node + '/transactions/broadcast',
-                                json: res.body,
-                                headers: {
-                                    "Accept": "application/json",
-                                    "Content-Type": "application/json"
+                            logmessage = "         " + batchid + "] - masstransfer " + masstransfercounterup +
+                                " for " + asset + " done! Send " + onemasstransferamount / Math.pow(10, decimalpts) +
+                                " " + asset + " with " + masstxarray.length + " transactions in it." +
+                                " Cost " + masstransactionpayment.fee / Math.pow(10, 8)
+
+                            console.log(logmessage)
+
+                            logobject += logmessage + "\n"
+                            masstxarray = []
+                            onemasstransferamount = 0
+                            masstxsdone++
+                            transfercostbatch += masstransactionpayment.fee / Math.pow(10, 8)
+
+                            if (masstxsdone == nrofmasstransfers) { //Finished all masstransfers for one batch!
+
+                                console.log("\nTotal masstransfercosts: " + transfercostbatch + " lto.")
+
+                                if (debug) {
+                                    console.log("debug enabled. not going to write into files.");
                                 }
-                            }, function(err, res) {
-
-                                if (err || res.body.error) {
-                                    const error = err || res.body;
-
-                                    console.log(error);
-                                    return;
-                                }
-
-                                logmessage = "         " + batchid + "] - masstransfer " + masstransfercounterup +
-                                    " for " + asset + " done! Send " + onemasstransferamount / Math.pow(10, decimalpts) +
-                                    " " + asset + " with " + masstxarray.length + " transactions in it." +
-                                    " Cost " + masstransactionpayment.fee / Math.pow(10, 8)
-
-                                console.log(logmessage)
-
-                                logobject += logmessage + "\n"
-                                masstxarray = []
-                                onemasstransferamount = 0
-                                masstxsdone++
-                                transfercostbatch += masstransactionpayment.fee / Math.pow(10, 8)
-
-                                if (masstxsdone == nrofmasstransfers) { //Finished all masstransfers for one batch!
-
-                                    console.log("\nTotal masstransfercosts: " + transfercostbatch + " lto.")
-
+                                else {
                                     fs.appendFileSync(config.payoutfileprefix + batchid + ".log",
                                         "\n======= masstx payment log [" + (new Date()) + "] =======\n" + logobject +
                                         "\nTotal masstransfercosts: " + transfercostbatch + " lto.\n" +
@@ -344,9 +348,9 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
 
                                     updatepayqueuefile(newpayqueue, batchid)
                                 }
-                            });
+                            }
                         });
-                    }, timeout) //End function masstransfers
+                    });
                 } //End for all masstransfers loop
             }, delayarray[index]) //End function actions for an Asset
         } //End if ( asset in payment )
