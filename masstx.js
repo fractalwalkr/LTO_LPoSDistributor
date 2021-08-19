@@ -294,19 +294,22 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                         headers: {
                             "Accept": "application/json",
                             "Content-Type": "application/json",
-                            "api_key": config.apiKey
+                            "api_key": !debug ? config.apiKey : ''
                         }
                     }, function(err, res) {
                         if (err || res.body.error) {
                             const error = err || res.body;
 
                             console.log(error);
-                            return;
+                            
+                            if(!debug) {
+                                return;
+                            }
                         }
 
                         request.post({
                             url: config.node + '/transactions/broadcast',
-                            json: res.body,
+                            json: !debug ? res.body : {},
                             headers: {
                                 "Accept": "application/json",
                                 "Content-Type": "application/json"
@@ -317,7 +320,9 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                                 const error = err || res.body;
 
                                 console.log(error);
-                                return;
+                                if(!debug) {
+                                    return;
+                                }
                             }
 
                             logmessage = "         " + batchid + "] - masstransfer " + masstransfercounterup +
