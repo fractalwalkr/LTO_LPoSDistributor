@@ -227,7 +227,8 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                 let masstransactionpayment = {
                     "version": masstransferversion,
                     "type": masstransfertype,
-                    "sender": payment.Common.sender
+                    "sender": payment.Common.sender,
+                    "timestamp": Date.now()
                 }
 
                 if (asset !== 'lto') {
@@ -295,7 +296,7 @@ var doPayment = function(payments, counter, batchid, nrofmasstransfers) {
                         headers: {
                             "Accept": "application/json",
                             "Content-Type": "application/json",
-                            "api_key": !debug ? config.apiKey : ''
+                            "X-API-Key": !debug ? config.apiKey : ''
                         }
                     }, function(err, res) {
                         if (err || res.body.error) {
